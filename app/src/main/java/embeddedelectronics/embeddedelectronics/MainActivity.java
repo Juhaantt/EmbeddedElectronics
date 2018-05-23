@@ -3,31 +3,40 @@ package embeddedelectronics.embeddedelectronics;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.widget.ProgressBar;
+import android.widget.EditText;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Set;
 import java.util.UUID;
 import java.io.InputStream;
 import android.content.Intent;
 import android.widget.TextView;
 import java.io.OutputStream;
+import android.view.View;
+import android.widget.Button;
+
+import android.os.Handler;
+
 
 
 public class MainActivity extends AppCompatActivity {
-
-    TextView alcohol_level;
-    ProgressBar alcogol_level_visual;
-
-    private final String DEVICE_ADDRESS="20:13:10:15:33:66";
+    String DEVICE_ADDRESS="20:17:09:14:17:27";
     private final UUID PORT_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");//Serial Port Service ID
     private BluetoothDevice device;
     private BluetoothSocket socket;
     private OutputStream outputStream;
     private InputStream inputStream;
+    Button startButton,clearButton,stopButton;
+    TextView textView;
+    TextView textViewWarning;
+    EditText editText;
     boolean deviceConnected=false;
     Thread thread;
     byte buffer[];
@@ -37,19 +46,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        alcohol_level = (TextView) findViewById(R.id.alcohol_level);
-        alcogol_level_visual = (ProgressBar) findViewById(R.id.alcohol_level_visual);
+        startButton = (Button) findViewById(R.id.buttonStart);
+        clearButton = (Button) findViewById(R.id.buttonClear);
+        stopButton = (Button) findViewById(R.id.buttonStop);
+        textView = (TextView) findViewById(R.id.textView);
+        textViewWarning = (TextView) findViewById(R.id.textViewWarning);
         setUiEnabled(false);
-
-        BTinit();
-        BTconnect();
 
     }
 
     public void setUiEnabled(boolean bool)
     {
-        alcohol_level.setEnabled(bool);
-        alcogol_level_visual.setEnabled(bool);
+        startButton.setEnabled(!bool);
+        stopButton.setEnabled(bool);
+        textView.setEnabled(bool);
+        textViewWarning.setEnabled(bool);
+
     }
 
     public boolean BTinit()
@@ -111,18 +123,30 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            setUiEnabled(true);
-            deviceConnected=true;
-            beginListenForData();
+
         }
 
 
         return connected;
     }
 
+    public void onClickStart(View view) {
+        if(BTinit())
+        {
+            if(BTconnect())
+            {
+                setUiEnabled(true);
+                deviceConnected=true;
+                beginListenForData();
+                textView.append("\nConnection Opened!\n");
+            }
+
+        }
+    }
+
     void beginListenForData()
     {
-        final android.os.Handler handler = new android.os.Handler();
+        final Handler handler = new Handler();
         stopThread = false;
         buffer = new byte[1024];
         Thread thread  = new Thread(new Runnable()
@@ -136,13 +160,18 @@ public class MainActivity extends AppCompatActivity {
                         int byteCount = inputStream.available();
                         if(byteCount > 0)
                         {
-                            byte[] rawBytes = new byte[byteCount];
+                            final byte[] rawBytes = new byte[byteCount];
                             inputStream.read(rawBytes);
+                            final BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
                             final String string=new String(rawBytes,"UTF-8");
+
+
+
                             handler.post(new Runnable() {
                                 public void run()
                                 {
-                                    alcohol_level.append(string);
+                                    textView.append(string);
+                                    
                                 }
                             });
 
@@ -157,5 +186,19 @@ public class MainActivity extends AppCompatActivity {
         });
 
         thread.start();
+    }
+
+    public void onClickStop(View view) throws IOException {
+        stopThread = true;
+        outputStream.close();
+        inputStream.close();
+        socket.close();
+        setUiEnabled(false);
+        deviceConnected=false;
+        textView.append("\nConnection Closed!\n");
+    }
+
+    public void onClickClear(View view) {
+        textView.setText("");
     }
 }
